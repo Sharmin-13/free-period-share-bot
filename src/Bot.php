@@ -1367,14 +1367,14 @@ final class Bot
             $periodButton = !empty($user['period_active'])
                 ? ($fa ? '🩸 الان پریودم تموم شد' : '🩸 My period ended')
                 : ($fa ? '🩸 الان پریود شدم' : '🩸 My period started');
-            $rows[] = [['text' => $periodButton, 'style' => !empty($user['period_active']) ? 'success' : 'danger']];
-            $rows[] = [['text' => $fa ? '📊 وضعیت من' : '📊 My status', 'style' => 'primary'], ['text' => $fa ? '⚙️ تنظیمات' : '⚙️ Settings']];
+            $rows[] = [['text' => $periodButton]];
+            $rows[] = [['text' => $fa ? '📊 وضعیت من' : '📊 My status'], ['text' => $fa ? '⚙️ تنظیمات' : '⚙️ Settings']];
             $rows[] = [['text' => $fa ? '📚 تاریخچه ۵ چرخه اخیر' : '📚 Last 5 cycles']];
             if ($user['partner_id'] !== null) {
                 $partner = $this->getUserById((int) $user['partner_id']);
                 if ($partner['gender'] === 'female') {
                     $rows[] = [
-                        ['text' => $fa ? '📊 وضعیت پارتنر' : '📊 Partner status', 'style' => 'primary'],
+                        ['text' => $fa ? '📊 وضعیت پارتنر' : '📊 Partner status'],
                         ['text' => $fa ? '📚 تاریخچه پارتنر' : '📚 Partner cycle history'],
                     ];
                 }
@@ -1382,18 +1382,18 @@ final class Bot
         } else {
             if ($user['partner_id'] === null) {
                 $rows[] = [
-                    ['text' => $fa ? '🔐 ساخت کد/لینک اتصال' : '🔐 Create invite code/link', 'style' => 'success'],
-                    ['text' => $fa ? '🔑 کد یار را وارد کن' : '🔑 Enter partner code', 'style' => 'success'],
+                    ['text' => $fa ? '🔐 ساخت کد/لینک اتصال' : '🔐 Create invite code/link'],
+                    ['text' => $fa ? '🔑 کد یار را وارد کن' : '🔑 Enter partner code'],
                 ];
             }
-            $rows[] = [['text' => $fa ? '📊 وضعیت پارتنر' : '📊 Partner status', 'style' => 'primary'], ['text' => $fa ? '⚙️ تنظیمات' : '⚙️ Settings']];
+            $rows[] = [['text' => $fa ? '📊 وضعیت پارتنر' : '📊 Partner status'], ['text' => $fa ? '⚙️ تنظیمات' : '⚙️ Settings']];
             $rows[] = [['text' => $fa ? '📚 تاریخچه ۵ چرخه اخیر' : '📚 Last 5 cycles']];
         }
         if ($user['partner_id'] === null) {
             if ($user['gender'] === 'female') {
                 $rows[] = [
-                    ['text' => $fa ? '🤝 با یارت به اشتراک بذار' : '🤝 Share with your partner', 'style' => 'success'],
-                    ['text' => $fa ? '🔑 کد یار را وارد کن' : '🔑 Enter partner code', 'style' => 'success'],
+                    ['text' => $fa ? '🤝 با یارت به اشتراک بذار' : '🤝 Share with your partner'],
+                    ['text' => $fa ? '🔑 کد یار را وارد کن' : '🔑 Enter partner code'],
                 ];
             }
         }
