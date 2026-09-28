@@ -1,0 +1,14 @@
+config.php
+*.log
+error_log
+*.key
+*.pem
+*.local.php
+deploy.zip
+*.zip
+*.sql.gz
+*.bak
+.env
+/tests/qa-public/
+/tests/
+/SECURITY_REVIEW*.md
