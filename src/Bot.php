@@ -66,6 +66,10 @@ final class Bot
             $this->recordPeriodEnd($user);
             return;
         }
+        if ($this->matches($text, ['📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 ثبت پریود جاافتاده', '📅 Log a missed period'])) {
+            $this->beginMissedPeriod($user);
+            return;
+        }
         if ($this->matches($text, ['🔗 افزودن پارتنر', '🔗 Add partner'])) {
             $this->showPartnerMenu($user);
             return;
@@ -324,6 +328,14 @@ final class Bot
 
     private function resumeFemaleSetup(array $user): void
     {
+        if ($user['state'] === 'missed_period_end') {
+            $this->askMissedPeriodEnd($user);
+            return;
+        }
+        if ($user['state'] === 'missed_period_start' || str_starts_with((string) $user['state'], 'missed_period_end_')) {
+            $this->beginMissedPeriod($user);
+            return;
+        }
         match ((string) $user['state']) {
             'cycle_length', 'cycle_custom' => $this->askCycleLength($user),
             'bleed_length', 'bleed_custom' => $this->askBleedLength($user),
@@ -347,6 +359,14 @@ final class Bot
         }
         if ($user['state'] === 'note_write') {
             $this->saveNote($user, $text, $message);
+            return;
+        }
+        if ($user['state'] === 'missed_period_end') {
+            $this->handleMissedPeriodEnd($user, $text);
+            return;
+        }
+        if ($user['state'] === 'missed_period_start' || str_starts_with((string) $user['state'], 'missed_period_end_')) {
+            $this->beginMissedPeriod($user);
             return;
         }
         $value = filter_var($this->toEnglishDigits($text), FILTER_VALIDATE_INT);
@@ -481,10 +501,7 @@ final class Bot
 
     private function handleCustomStartDate(array $user, string $text): void
     {
-        $text = $this->toEnglishDigits(trim($text));
-        $date = ($user['language'] ?? 'fa') === 'fa'
-            ? $this->parseJalaliDate($text)
-            : $this->parseGregorianDate($text);
+        $date = $this->parseDateForUser($user, $text);
         $today = new DateTimeImmutable('today', $this->timezone);
         if ($date === null || $date > $today) {
             $this->telegram->send($user['chat_id'], $this->t($user, 'invalid_start_date'));
@@ -541,6 +558,11 @@ final class Bot
     {
         if (($user['state'] ?? null) === 'note_write') {
             $user = $this->restoreNoteState($user);
+        }
+        if (($user['state'] ?? null) === 'missed_period_end'
+            || ($user['state'] ?? null) === 'missed_period_start'
+            || str_starts_with((string) ($user['state'] ?? ''), 'missed_period_end_')) {
+            $this->updateUser($user['id'], ['state' => 'ready']);
         }
         $user = $this->getUserById((int) $user['id']);
         if ($user['language'] === null || $user['gender'] === null) {
@@ -856,6 +878,120 @@ final class Bot
             }
             throw $e;
         }
+    }
+
+    private function beginMissedPeriod(array $user): void
+    {
+        if ($user['gender'] !== 'female') {
+            $this->showMenu($user);
+            return;
+        }
+        if (in_array($user['state'], [
+            'cycle_length', 'cycle_custom', 'bleed_length', 'bleed_custom',
+            'ovulation_day', 'ovulation_custom', 'pms_days', 'pms_custom',
+            'last_period_date', 'last_period_custom',
+        ], true)) {
+            $this->resumeFemaleSetup($user);
+            return;
+        }
+        if (empty($user['period_active']) || $user['last_period_date'] === null) {
+            $this->updateUser($user['id'], ['state' => 'ready']);
+            $fresh = $this->getUserById((int) $user['id']);
+            $this->telegram->send($fresh['chat_id'], $this->t($fresh, 'period_not_active'), $this->mainKeyboard($fresh));
+            return;
+        }
+        $this->updateUser($user['id'], ['state' => 'missed_period_end', 'note_return_state' => null]);
+        $user['state'] = 'missed_period_end';
+        $this->askMissedPeriodEnd($user);
+    }
+
+    private function askMissedPeriodEnd(array $user): void
+    {
+        if (empty($user['period_active']) || $user['last_period_date'] === null) {
+            $this->beginMissedPeriod($user);
+            return;
+        }
+        $start = new DateTimeImmutable($user['last_period_date'], $this->timezone);
+        $this->telegram->send($user['chat_id'], $this->t($user, 'missed_end_prompt', [
+            'start' => $this->formatDateForUser($user, $start),
+        ]), $this->mainKeyboard($user));
+    }
+
+    private function handleMissedPeriodEnd(array $user, string $text): void
+    {
+        if (empty($user['period_active']) || $user['last_period_date'] === null) {
+            $this->beginMissedPeriod($user);
+            return;
+        }
+        $start = new DateTimeImmutable($user['last_period_date'], $this->timezone);
+        $end = $this->parseDateForUser($user, $text);
+        if ($end === null || $end < $start || $end > new DateTimeImmutable('today', $this->timezone)) {
+            $this->telegram->send($user['chat_id'], $this->t($user, 'missed_invalid_end', [
+                'start' => $this->formatDateForUser($user, $start),
+            ]));
+            return;
+        }
+
+        $startDate = $start->format('Y-m-d');
+        $endDate = $end->format('Y-m-d');
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare('SELECT * FROM users WHERE id = ? FOR UPDATE');
+            $stmt->execute([(int) $user['id']]);
+            $locked = $stmt->fetch();
+            if (!$locked || $locked['gender'] !== 'female' || $locked['state'] !== 'missed_period_end'
+                || empty($locked['period_active']) || $locked['last_period_date'] !== $startDate) {
+                throw new DomainException('state_changed');
+            }
+            $stmt = $this->db->prepare('SELECT ended_on FROM period_cycles WHERE tracked_user_id = ? AND started_on = ? FOR UPDATE');
+            $stmt->execute([(int) $user['id'], $startDate]);
+            $existing = $stmt->fetch();
+            if ($existing && $existing['ended_on'] !== null) {
+                throw new DomainException('conflict');
+            }
+            $stmt = $this->db->prepare('SELECT started_on FROM period_cycles WHERE tracked_user_id = ? AND started_on > ? ORDER BY started_on ASC LIMIT 1 FOR UPDATE');
+            $stmt->execute([(int) $user['id'], $startDate]);
+            $nextStart = $stmt->fetchColumn();
+            if ($nextStart !== false && $nextStart <= $endDate) {
+                throw new DomainException('conflict');
+            }
+            if ($locked['last_period_end_date'] !== null && $locked['last_period_end_date'] >= $startDate) {
+                throw new DomainException('conflict');
+            }
+            if ($existing) {
+                $stmt = $this->db->prepare('UPDATE period_cycles SET ended_on = ? WHERE tracked_user_id = ? AND started_on = ? AND ended_on IS NULL');
+                $stmt->execute([$endDate, (int) $user['id'], $startDate]);
+            } else {
+                $stmt = $this->db->prepare('INSERT INTO period_cycles (tracked_user_id, started_on, ended_on) VALUES (?, ?, ?)');
+                $stmt->execute([(int) $user['id'], $startDate, $endDate]);
+            }
+            $this->updateUser($user['id'], [
+                'state' => 'ready',
+                'last_period_end_date' => $endDate,
+                'period_active' => 0,
+            ]);
+            $this->db->commit();
+        } catch (DomainException $e) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            if ($e->getMessage() === 'state_changed') {
+                $this->start($this->getUserById((int) $user['id']));
+                return;
+            }
+            $this->updateUser($user['id'], ['state' => 'ready']);
+            $fresh = $this->getUserById((int) $user['id']);
+            $this->telegram->send($fresh['chat_id'], $this->t($fresh, 'missed_conflict'), $this->mainKeyboard($fresh));
+            return;
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $e;
+        }
+        $fresh = $this->getUserById((int) $user['id']);
+        $this->markNotification((int) $fresh['id'], 'period_ended', $end);
+        $this->notifyTracked($fresh, $this->t($fresh, 'missed_saved', [
+            'start' => $this->formatDateForUser($fresh, $start),
+            'end' => $this->formatDateForUser($fresh, $end),
+            'days' => $this->formatNumberForUser($fresh, (int) $start->diff($end)->format('%a') + 1),
+        ]), $this->partnerText($fresh, 'period_end_partner'));
     }
 
     private function recordPeriod(array $user): void
@@ -1367,7 +1503,11 @@ final class Bot
             $periodButton = !empty($user['period_active'])
                 ? ($fa ? '🩸 الان پریودم تموم شد' : '🩸 My period ended')
                 : ($fa ? '🩸 الان پریود شدم' : '🩸 My period started');
-            $rows[] = [['text' => $periodButton]];
+            $periodRow = [['text' => $periodButton, 'style' => 'danger']];
+            if (!empty($user['period_active'])) {
+                $periodRow[] = ['text' => $fa ? '📅 ثبت پایان فراموش‌شده' : '📅 Log a missed end', 'style' => 'danger'];
+            }
+            $rows[] = $periodRow;
             $rows[] = [['text' => $fa ? '📊 وضعیت من' : '📊 My status'], ['text' => $fa ? '⚙️ تنظیمات' : '⚙️ Settings']];
             $rows[] = [['text' => $fa ? '📚 تاریخچه ۵ چرخه اخیر' : '📚 Last 5 cycles']];
             if ($user['partner_id'] !== null) {
@@ -1507,6 +1647,8 @@ final class Bot
         return $this->matches($text, [
             '🩸 الان پریود شدم', '🩸 My period started',
             '🩸 الان پریودم تموم شد', '🩸 My period ended',
+            '📅 ثبت پایان فراموش‌شده', '📅 Log a missed end',
+            '📅 ثبت پریود جاافتاده', '📅 Log a missed period',
             '🔗 افزودن پارتنر', '🔗 Add partner',
             '🤝 با یارت به اشتراک بذار', '🤝 Share with your partner',
             '🔐 ساخت کد/لینک اتصال', '🔐 Create invite code/link',
@@ -1573,6 +1715,14 @@ final class Bot
     private function toPersianDigits(string $value): string
     {
         return strtr($value, ['0' => '۰', '1' => '۱', '2' => '۲', '3' => '۳', '4' => '۴', '5' => '۵', '6' => '۶', '7' => '۷', '8' => '۸', '9' => '۹']);
+    }
+
+    private function parseDateForUser(array $user, string $value): ?DateTimeImmutable
+    {
+        $value = $this->toEnglishDigits(trim($value));
+        return ($user['language'] ?? 'fa') === 'fa'
+            ? $this->parseJalaliDate($value)
+            : $this->parseGregorianDate($value);
     }
 
     private function parseGregorianDate(string $value): ?DateTimeImmutable
@@ -1738,6 +1888,10 @@ final class Bot
                 'started_today' => '🩸 امروز شروع شد', 'enter_start_date' => '📅 وارد کردن تاریخ', 'record_later' => 'بعداً با دکمه ثبت می‌کنم',
                 'start_date_prompt' => 'تاریخ شروع را به شمسی بفرست؛ مثل ۱۴۰۵/۱۰/۲۰ یا ۲۰/۱۰/۱۴۰۵. عدد وسط ماه است و خط تیره هم پذیرفته می‌شود.',
                 'invalid_start_date' => 'تاریخ معتبر نیست. تاریخ شمسی را مثل ۱۴۰۵/۱۰/۲۰ یا ۲۰/۱۰/۱۴۰۵ بفرست. تاریخ آینده پذیرفته نمی‌شود.',
+                'missed_end_prompt' => "شروع پریود ثبت‌شده: {start}\nاگر پایان این پریود را فراموش کردی ثبت کنی، تاریخ دقیق پایان خون‌ریزی را به شمسی بفرست؛ مثل ۱۴۰۵/۰۷/۱۰ یا ۱۰/۰۷/۱۴۰۵. عدد وسط ماه است و خط تیره هم پذیرفته می‌شود. برای انصراف /menu را بفرست.",
+                'missed_invalid_end' => 'تاریخ پایان معتبر نیست. باید از {start} زودتر نباشد و در آینده هم نباشد. دوباره به شمسی بفرست.',
+                'missed_conflict' => 'پایان این پریود قبلاً ثبت شده یا با چرخهٔ دیگری تداخل دارد؛ هیچ داده‌ای تغییر نکرد. وضعیتت را بررسی کن.',
+                'missed_saved' => "✅ تاریخ پایان پریود ثبت شد. شروع ثبت‌شده: {start}\nپایان: {end}\nمدت خون‌ریزی: {days} روز. اعلان‌های روزهای گذشته دوباره فرستاده نمی‌شوند.",
                 'custom' => 'عدد دیگر', 'unknown_28' => 'نمی‌دانم (۲۸)', 'unknown_5' => 'نمی‌دانم (۵)', 'unknown_14' => 'نمی‌دانم (۱۴)',
                 'cycle_custom_prompt' => 'تعداد روزهای معمول چرخه‌ات را به‌صورت عدد بفرست.', 'bleed_custom_prompt' => 'عددی بین ۱ تا ۱۰ بفرست.',
                 'ovulation_custom_prompt' => 'عددی بین ۶ تا ۳۰ بفرست.', 'pms_custom_prompt' => 'عددی بین ۱ تا ۱۴ بفرست.',
@@ -1823,6 +1977,10 @@ final class Bot
                 'started_today' => '🩸 It started today', 'enter_start_date' => '📅 Enter the date', 'record_later' => 'I’ll record it later',
                 'start_date_prompt' => 'Send the start date as YYYY-MM-DD or DD-MM-YYYY, for example 2026-09-20 or 20-09-2026. The middle number is always the month; slashes are also accepted.',
                 'invalid_start_date' => 'That date is invalid. Use YYYY-MM-DD or DD-MM-YYYY. Future dates are not accepted.',
+                'missed_end_prompt' => "Recorded period start: {start}\nIf you forgot to log when this period ended, send the exact end date in Gregorian format, for example 2026-10-06 or 06-10-2026. The middle number is the month; slashes also work. Send /menu to cancel.",
+                'missed_invalid_end' => 'That end date is invalid. It cannot be before {start} or in the future. Send a Gregorian date again.',
+                'missed_conflict' => 'This period already has an end date or conflicts with another cycle. No data was changed. Check your status.',
+                'missed_saved' => "✅ Period end date saved. Recorded start: {start}\nEnd: {end}\nBleeding: {days} day(s). Past notifications will not be resent.",
                 'custom' => 'Other number', 'unknown_28' => 'Not sure (28)', 'unknown_5' => 'Not sure (5)', 'unknown_14' => 'Not sure (14)',
                 'cycle_custom_prompt' => 'Send your usual cycle length as a number of days.', 'bleed_custom_prompt' => 'Send a number from 1 to 10.',
                 'ovulation_custom_prompt' => 'Send a number from 6 to 30.', 'pms_custom_prompt' => 'Send a number from 1 to 14.',
