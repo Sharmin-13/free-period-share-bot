@@ -10,6 +10,7 @@ final class Bot
     private const SCHEDULE_MAX_AGE_DAYS = 60;
     private const ABOUT_TEXT_FA = 'این ربات را من، فرشاد مصفا، با هدف دسترسی رایگان مردم در سراسر جهان به یک ابزار ساده برای آگاهی بیشتر درباره چرخه قاعدگی ساخته‌ام؛ بدون نیاز به پرداخت هزینه. فعالیت اصلی من در حوزه سبدگردانی ارز دیجیتال و بورس است و در کنار آن یک استارتاپ حقوقی برای مشاوره حقوقی و وکالت هم دارم. برای همکاری سبدگردانی می‌توانید پیام بدهید: <a href="https://t.me/farshdamosaffa">@farshdamosaffa</a>  برای استفاده از خدمات وکیل و مشاور حقوقی <a href="https://t.me/Online_vakil_24_bot">@Online_vakil_24_bot</a>' . "\n\n" . 'حتما از سایت شخصی من بازدید کنید: <a href="https://farshadmosaffa.ir/">farshadmosaffa.ir</a>';
     private const ABOUT_TEXT_EN = 'About the Creator I’m Farshad Mosaffa. I built this bot as a free tool for people around the world to better understand and track menstrual cycles without having to pay for access. My main field is cryptocurrency portfolio management. For collaboration: <a href="https://t.me/farshdamosaffa">@farshdamosaffa</a>' . "\n\n" . 'Be sure to visit my personal website: <a href="https://farshadmosaffa.ir/">farshadmosaffa.ir</a>';
+    private const ABOUT_TEXT_RU = 'О создателе. Я Фаршад Мосаффа. Я создал этого бота как бесплатный инструмент, чтобы люди во всём мире могли лучше понимать и отслеживать менструальный цикл без оплаты. Моя основная сфера деятельности — управление портфелями криптовалют. Для сотрудничества: <a href="https://t.me/farshdamosaffa">@farshdamosaffa</a>' . "\n\n" . 'Обязательно посетите мой личный сайт: <a href="https://farshadmosaffa.ir/">farshadmosaffa.ir</a>';
 
     public function __construct(
         private PDO $db,
@@ -49,72 +50,72 @@ final class Bot
             $this->showMenu($user);
             return;
         }
-        if ($this->matches($text, ['↩️ بازگشت', '↩️ Back'])) {
+        if ($this->matches($text, ['↩️ بازگشت', '↩️ Back', '↩️ Назад'])) {
             $this->showMenu($user);
             return;
         }
         if ($this->isReplyKeyboardButton($text)
-            && !$this->matches($text, ['🩸 الان پریود شدم', '🩸 My period started', '🩸 الان پریودم تموم شد', '🩸 My period ended'])
+            && !$this->matches($text, ['🩸 الان پریود شدم', '🩸 My period started', '🩸 Начались месячные', '🩸 الان پریودم تموم شد', '🩸 My period ended', '🩸 Месячные закончились'])
             && !$this->allowUiClick((int) $user['id'])) {
             return;
         }
-        if ($this->matches($text, ['🩸 الان پریود شدم', '🩸 My period started'])) {
+        if ($this->matches($text, ['🩸 الان پریود شدم', '🩸 My period started', '🩸 Начались месячные'])) {
             $this->recordPeriod($user);
             return;
         }
-        if ($this->matches($text, ['🩸 الان پریودم تموم شد', '🩸 My period ended'])) {
+        if ($this->matches($text, ['🩸 الان پریودم تموم شد', '🩸 My period ended', '🩸 Месячные закончились'])) {
             $this->recordPeriodEnd($user);
             return;
         }
-        if ($this->matches($text, ['📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 ثبت پریود جاافتاده', '📅 Log a missed period'])) {
+        if ($this->matches($text, ['📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 Записать дату окончания', '📅 ثبت پریود جاافتاده', '📅 Log a missed period'])) {
             $this->beginMissedPeriod($user);
             return;
         }
-        if ($this->matches($text, ['🔗 افزودن پارتنر', '🔗 Add partner'])) {
+        if ($this->matches($text, ['🔗 افزودن پارتنر', '🔗 Add partner', '🔗 Добавить партнёра'])) {
             $this->showPartnerMenu($user);
             return;
         }
-        if ($this->matches($text, ['🤝 با یارت به اشتراک بذار', '🤝 Share with your partner'])) {
+        if ($this->matches($text, ['🤝 با یارت به اشتراک بذار', '🤝 Share with your partner', '🤝 Поделиться с партнёром'])) {
             $this->sendInvite($user);
             return;
         }
-        if ($this->matches($text, ['🔐 ساخت کد/لینک اتصال', '🔐 Create invite code/link'])) {
+        if ($this->matches($text, ['🔐 ساخت کد/لینک اتصال', '🔐 Create invite code/link', '🔐 Создать код/ссылку'])) {
             $this->sendInvite($user);
             return;
         }
-        if ($this->matches($text, ['🔑 کد یار را وارد کن', '🔑 Enter partner code'])) {
+        if ($this->matches($text, ['🔑 کد یار را وارد کن', '🔑 Enter partner code', '🔑 Ввести код партнёра'])) {
             $this->beginCodeEntry($user);
             return;
         }
-        if ($this->matches($text, ['⚙️ تنظیمات', '⚙️ Settings'])) {
+        if ($this->matches($text, ['⚙️ تنظیمات', '⚙️ Settings', '⚙️ Настройки'])) {
             $this->showSettings($user);
             return;
         }
-        if ($this->matches($text, ['📊 وضعیت من', '📊 My status'])) {
+        if ($this->matches($text, ['📊 وضعیت من', '📊 My status', '📊 Мой статус'])) {
             $this->sendStatus($user, false);
             return;
         }
-        if ($this->matches($text, ['📊 وضعیت پارتنر', '📊 Partner status'])) {
+        if ($this->matches($text, ['📊 وضعیت پارتنر', '📊 Partner status', '📊 Статус партнёра'])) {
             $this->sendStatus($user, true);
             return;
         }
-        if ($this->matches($text, ['📚 تاریخچه ۵ چرخه اخیر', '📚 Last 5 cycles'])) {
+        if ($this->matches($text, ['📚 تاریخچه ۵ چرخه اخیر', '📚 Last 5 cycles', '📚 Последние 5 циклов'])) {
             $this->showCycleHistory($user, $user['gender'] === 'male');
             return;
         }
-        if ($this->matches($text, ['📚 تاریخچه پارتنر', '📚 Partner cycle history'])) {
+        if ($this->matches($text, ['📚 تاریخچه پارتنر', '📚 Partner cycle history', '📚 История партнёра'])) {
             $this->showCycleHistory($user, true);
             return;
         }
-        if ($this->matches($text, ['👤 درباره سازنده', '👤 About the Creator'])) {
+        if ($this->matches($text, ['👤 درباره سازنده', '👤 About the Creator', '👤 О создателе'])) {
             $this->sendCreator($user);
             return;
         }
-        if ($this->matches($text, ['🎁 چرا رایگان است؟', '🎁 Why is it free?'])) {
+        if ($this->matches($text, ['🎁 چرا رایگان است؟', '🎁 Why is it free?', '🎁 Почему бесплатно?'])) {
             $this->sendWhyFree($user);
             return;
         }
-        if ($this->matches($text, ['💌 دل‌نوشته‌ها', '💌 دل‌نوشته‌ها (ناشناس)', '💌 Notes', '💌 Notes (Anonymous)'])) {
+        if ($this->matches($text, ['💌 دل‌نوشته‌ها', '💌 دل‌نوشته‌ها (ناشناس)', '💌 Notes', '💌 Notes (Anonymous)', '💌 Записки (анонимно)'])) {
             $this->showNotesMenu($user);
             return;
         }
@@ -160,7 +161,7 @@ final class Bot
             return;
         }
 
-        if ($data === 'lang:fa' || $data === 'lang:en') {
+        if (in_array($data, ['lang:fa', 'lang:en', 'lang:ru'], true)) {
             $language = substr($data, 5);
             $fields = ['language' => $language];
             if ($user['gender'] === null) {
@@ -406,11 +407,14 @@ final class Bot
 
     private function askLanguage(int|string $chatId): void
     {
-        $this->telegram->send($chatId, "زبان را انتخاب کنید.\nChoose your language:", [
-            'inline_keyboard' => [[
-                ['text' => '🇮🇷 فارسی', 'callback_data' => 'lang:fa', 'style' => 'primary'],
-                ['text' => '🇬🇧 English', 'callback_data' => 'lang:en', 'style' => 'primary'],
-            ]],
+        $this->telegram->send($chatId, "زبان را انتخاب کنید.\nChoose your language:\nВыберите язык:", [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🇮🇷 فارسی', 'callback_data' => 'lang:fa', 'style' => 'primary'],
+                    ['text' => '🇬🇧 English', 'callback_data' => 'lang:en', 'style' => 'primary'],
+                ],
+                [['text' => '🇷🇺 Русский', 'callback_data' => 'lang:ru', 'style' => 'primary']],
+            ],
         ]);
     }
 
@@ -1497,65 +1501,72 @@ final class Bot
         if (($user['gender'] ?? null) === null) {
             return $this->infoKeyboard($user);
         }
-        $fa = ($user['language'] ?? 'fa') === 'fa';
         $rows = [];
         if ($user['gender'] === 'female') {
             $periodButton = !empty($user['period_active'])
-                ? ($fa ? '🩸 الان پریودم تموم شد' : '🩸 My period ended')
-                : ($fa ? '🩸 الان پریود شدم' : '🩸 My period started');
+                ? $this->keyboardText($user, '🩸 الان پریودم تموم شد', '🩸 My period ended', '🩸 Месячные закончились')
+                : $this->keyboardText($user, '🩸 الان پریود شدم', '🩸 My period started', '🩸 Начались месячные');
             $periodRow = [['text' => $periodButton, 'style' => 'danger']];
             if (!empty($user['period_active'])) {
-                $periodRow[] = ['text' => $fa ? '📅 ثبت پایان فراموش‌شده' : '📅 Log a missed end', 'style' => 'danger'];
+                $periodRow[] = ['text' => $this->keyboardText($user, '📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 Записать дату окончания'), 'style' => 'danger'];
             }
             $rows[] = $periodRow;
-            $rows[] = [['text' => $fa ? '📊 وضعیت من' : '📊 My status'], ['text' => $fa ? '⚙️ تنظیمات' : '⚙️ Settings']];
-            $rows[] = [['text' => $fa ? '📚 تاریخچه ۵ چرخه اخیر' : '📚 Last 5 cycles']];
+            $rows[] = [['text' => $this->keyboardText($user, '📊 وضعیت من', '📊 My status', '📊 Мой статус')], ['text' => $this->keyboardText($user, '⚙️ تنظیمات', '⚙️ Settings', '⚙️ Настройки')]];
+            $rows[] = [['text' => $this->keyboardText($user, '📚 تاریخچه ۵ چرخه اخیر', '📚 Last 5 cycles', '📚 Последние 5 циклов')]];
             if ($user['partner_id'] !== null) {
                 $partner = $this->getUserById((int) $user['partner_id']);
                 if ($partner['gender'] === 'female') {
                     $rows[] = [
-                        ['text' => $fa ? '📊 وضعیت پارتنر' : '📊 Partner status'],
-                        ['text' => $fa ? '📚 تاریخچه پارتنر' : '📚 Partner cycle history'],
+                        ['text' => $this->keyboardText($user, '📊 وضعیت پارتنر', '📊 Partner status', '📊 Статус партнёра')],
+                        ['text' => $this->keyboardText($user, '📚 تاریخچه پارتنر', '📚 Partner cycle history', '📚 История партнёра')],
                     ];
                 }
             }
         } else {
             if ($user['partner_id'] === null) {
                 $rows[] = [
-                    ['text' => $fa ? '🔐 ساخت کد/لینک اتصال' : '🔐 Create invite code/link'],
-                    ['text' => $fa ? '🔑 کد یار را وارد کن' : '🔑 Enter partner code'],
+                    ['text' => $this->keyboardText($user, '🔐 ساخت کد/لینک اتصال', '🔐 Create invite code/link', '🔐 Создать код/ссылку')],
+                    ['text' => $this->keyboardText($user, '🔑 کد یار را وارد کن', '🔑 Enter partner code', '🔑 Ввести код партнёра')],
                 ];
             }
-            $rows[] = [['text' => $fa ? '📊 وضعیت پارتنر' : '📊 Partner status'], ['text' => $fa ? '⚙️ تنظیمات' : '⚙️ Settings']];
-            $rows[] = [['text' => $fa ? '📚 تاریخچه ۵ چرخه اخیر' : '📚 Last 5 cycles']];
+            $rows[] = [['text' => $this->keyboardText($user, '📊 وضعیت پارتنر', '📊 Partner status', '📊 Статус партнёра')], ['text' => $this->keyboardText($user, '⚙️ تنظیمات', '⚙️ Settings', '⚙️ Настройки')]];
+            $rows[] = [['text' => $this->keyboardText($user, '📚 تاریخچه ۵ چرخه اخیر', '📚 Last 5 cycles', '📚 Последние 5 циклов')]];
         }
         if ($user['partner_id'] === null) {
             if ($user['gender'] === 'female') {
                 $rows[] = [
-                    ['text' => $fa ? '🤝 با یارت به اشتراک بذار' : '🤝 Share with your partner'],
-                    ['text' => $fa ? '🔑 کد یار را وارد کن' : '🔑 Enter partner code'],
+                    ['text' => $this->keyboardText($user, '🤝 با یارت به اشتراک بذار', '🤝 Share with your partner', '🤝 Поделиться с партнёром')],
+                    ['text' => $this->keyboardText($user, '🔑 کد یار را وارد کن', '🔑 Enter partner code', '🔑 Ввести код партнёра')],
                 ];
             }
         }
-        $rows[] = [['text' => $fa ? '💌 دل‌نوشته‌ها (ناشناس)' : '💌 Notes (Anonymous)']];
-        $rows[] = [['text' => $fa ? '👤 درباره سازنده' : '👤 About the Creator'], ['text' => $fa ? '🎁 چرا رایگان است؟' : '🎁 Why is it free?']];
+        $rows[] = [['text' => $this->keyboardText($user, '💌 دل‌نوشته‌ها (ناشناس)', '💌 Notes (Anonymous)', '💌 Записки (анонимно)')]];
+        $rows[] = [['text' => $this->keyboardText($user, '👤 درباره سازنده', '👤 About the Creator', '👤 О создателе')], ['text' => $this->keyboardText($user, '🎁 چرا رایگان است؟', '🎁 Why is it free?', '🎁 Почему бесплатно?')]];
         return ['keyboard' => $rows, 'resize_keyboard' => true, 'is_persistent' => true];
     }
 
     private function infoKeyboard(array $user): array
     {
-        $fa = ($user['language'] ?? 'fa') === 'fa';
         return [
             'keyboard' => [
-                [['text' => $fa ? '💌 دل‌نوشته‌ها (ناشناس)' : '💌 Notes (Anonymous)']],
+                [['text' => $this->keyboardText($user, '💌 دل‌نوشته‌ها (ناشناس)', '💌 Notes (Anonymous)', '💌 Записки (анонимно)')]],
                 [
-                    ['text' => $fa ? '👤 درباره سازنده' : '👤 About the Creator'],
-                    ['text' => $fa ? '🎁 چرا رایگان است؟' : '🎁 Why is it free?'],
+                    ['text' => $this->keyboardText($user, '👤 درباره سازنده', '👤 About the Creator', '👤 О создателе')],
+                    ['text' => $this->keyboardText($user, '🎁 چرا رایگان است؟', '🎁 Why is it free?', '🎁 Почему бесплатно?')],
                 ],
             ],
             'resize_keyboard' => true,
             'is_persistent' => true,
         ];
+    }
+
+    private function keyboardText(array $user, string $fa, string $en, string $ru): string
+    {
+        return match ($user['language'] ?? 'fa') {
+            'en' => $en,
+            'ru' => $ru,
+            default => $fa,
+        };
     }
 
     private function restoreNoteState(array $user): array
@@ -1645,20 +1656,20 @@ final class Bot
     private function isReplyKeyboardButton(string $text): bool
     {
         return $this->matches($text, [
-            '🩸 الان پریود شدم', '🩸 My period started',
-            '🩸 الان پریودم تموم شد', '🩸 My period ended',
-            '📅 ثبت پایان فراموش‌شده', '📅 Log a missed end',
+            '🩸 الان پریود شدم', '🩸 My period started', '🩸 Начались месячные',
+            '🩸 الان پریودم تموم شد', '🩸 My period ended', '🩸 Месячные закончились',
+            '📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 Записать дату окончания',
             '📅 ثبت پریود جاافتاده', '📅 Log a missed period',
-            '🔗 افزودن پارتنر', '🔗 Add partner',
-            '🤝 با یارت به اشتراک بذار', '🤝 Share with your partner',
-            '🔐 ساخت کد/لینک اتصال', '🔐 Create invite code/link',
-            '🔑 کد یار را وارد کن', '🔑 Enter partner code',
-            '⚙️ تنظیمات', '⚙️ Settings',
-            '📊 وضعیت من', '📊 My status', '📊 وضعیت پارتنر', '📊 Partner status',
-            '📚 تاریخچه ۵ چرخه اخیر', '📚 Last 5 cycles', '📚 تاریخچه پارتنر', '📚 Partner cycle history',
-            '👤 درباره سازنده', '👤 About the Creator',
-            '🎁 چرا رایگان است؟', '🎁 Why is it free?',
-            '💌 دل‌نوشته‌ها', '💌 دل‌نوشته‌ها (ناشناس)', '💌 Notes', '💌 Notes (Anonymous)',
+            '🔗 افزودن پارتنر', '🔗 Add partner', '🔗 Добавить партнёра',
+            '🤝 با یارت به اشتراک بذار', '🤝 Share with your partner', '🤝 Поделиться с партнёром',
+            '🔐 ساخت کد/لینک اتصال', '🔐 Create invite code/link', '🔐 Создать код/ссылку',
+            '🔑 کد یار را وارد کن', '🔑 Enter partner code', '🔑 Ввести код партнёра',
+            '⚙️ تنظیمات', '⚙️ Settings', '⚙️ Настройки',
+            '📊 وضعیت من', '📊 My status', '📊 Мой статус', '📊 وضعیت پارتنر', '📊 Partner status', '📊 Статус партнёра',
+            '📚 تاریخچه ۵ چرخه اخیر', '📚 Last 5 cycles', '📚 Последние 5 циклов', '📚 تاریخچه پارتنر', '📚 Partner cycle history', '📚 История партнёра',
+            '👤 درباره سازنده', '👤 About the Creator', '👤 О создателе',
+            '🎁 چرا رایگان است؟', '🎁 Why is it free?', '🎁 Почему бесплатно?',
+            '💌 دل‌نوشته‌ها', '💌 دل‌نوشته‌ها (ناشناس)', '💌 Notes', '💌 Notes (Anonymous)', '💌 Записки (анонимно)',
         ]);
     }
 
@@ -1863,7 +1874,7 @@ final class Bot
 
     private function t(array $user, string $key, array $vars = []): string
     {
-        $lang = ($user['language'] ?? 'fa') === 'en' ? 'en' : 'fa';
+        $lang = in_array(($user['language'] ?? null), ['fa', 'en', 'ru'], true) ? $user['language'] : 'fa';
         $messages = self::messages();
         $text = $messages[$lang][$key] ?? $messages['en'][$key] ?? $key;
         foreach ($vars as $name => $value) {
@@ -2053,6 +2064,129 @@ final class Bot
                 'notes_rate_limited' => 'To prevent abuse, you can submit up to three notes per hour.',
                 'notes_saved' => '💌 Your note was saved anonymously.', 'notes_empty' => 'No notes have been posted yet.',
                 'note_lady' => '👩💌 Lady message', 'note_partner' => '🤝💌 Partner message', 'note_text_label' => 'Text:',
+            ],
+            'ru' => [
+                'choose_gender' => 'Выберите, как будете пользоваться ботом. Данные о цикле конфиденциальны и используются только для личных напоминаний.',
+                'female' => '👩 Я женщина', 'male' => '🤝 Я партнёр',
+                'role_help' => 'Кнопки «О создателе» и «Почему бесплатно?» всегда доступны внизу.',
+                'male_ready' => 'Готово. Введите одноразовый 8-значный код, которым с вами поделится женщина.',
+                'ask_cycle' => 'Сколько дней обычно длится ваш цикл?',
+                'ask_bleed' => 'Сколько дней обычно длится кровотечение?',
+                'ask_ovulation' => 'Если знаете, на какой день цикла обычно происходит овуляция? (Половое влечение и вероятность беременности могут быть выше.)',
+                'ask_pms' => 'За сколько дней до месячных обычно начинается ПМС?',
+                'ask_last_period' => 'Когда начались ваши последние месячные? Эта дата станет основой личного календаря.',
+                'started_today' => '🩸 Начались сегодня', 'enter_start_date' => '📅 Ввести дату', 'record_later' => 'Запишу позже',
+                'start_date_prompt' => 'Отправьте дату начала по григорианскому календарю в формате ГГГГ-ММ-ДД или ДД-ММ-ГГГГ, например 2026-09-20 или 20-09-2026. Среднее число — месяц; косая черта тоже подходит.',
+                'invalid_start_date' => 'Неверная дата. Используйте ГГГГ-ММ-ДД или ДД-ММ-ГГГГ. Будущая дата не принимается.',
+                'missed_end_prompt' => "Записанное начало месячных: {start}\nЕсли вы забыли отметить окончание, отправьте точную дату окончания по григорианскому календарю, например 2026-10-06 или 06-10-2026. Среднее число — месяц; косая черта тоже подходит. Для отмены отправьте /menu.",
+                'missed_invalid_end' => 'Неверная дата окончания. Она не может быть раньше {start} или позже сегодняшнего дня. Отправьте григорианскую дату ещё раз.',
+                'missed_conflict' => 'Дата окончания уже записана или пересекается с другим циклом. Данные не изменены. Проверьте свой статус.',
+                'missed_saved' => "✅ Дата окончания записана. Начало: {start}\nОкончание: {end}\nКровотечение: {days} дн. Напоминания за прошедшие дни повторно не отправляются.",
+                'custom' => 'Другое число', 'unknown_28' => 'Не знаю (28)', 'unknown_5' => 'Не знаю (5)', 'unknown_14' => 'Не знаю (14)',
+                'cycle_custom_prompt' => 'Отправьте обычную длину цикла в днях.',
+                'bleed_custom_prompt' => 'Отправьте число от 1 до 10.',
+                'ovulation_custom_prompt' => 'Отправьте число от 6 до 30.',
+                'pms_custom_prompt' => 'Отправьте число от 1 до 14.',
+                'invalid_cycle' => 'Введите длину цикла целым положительным числом.',
+                'invalid_number' => 'Число должно быть от {min} до {max}.',
+                'setup_done' => 'Настройки сохранены 🌷 Когда начнутся месячные, нажмите «Начались месячные».',
+                'setup_done_active' => 'Дата начала сохранена 🌷 Если кровотечение закончилось, нажмите «Месячные закончились» в меню ниже.',
+                'partner_optional' => 'Хотите добавить партнёра? Это необязательно.',
+                'make_code' => '🔐 Создать код подключения',
+                'share_partner' => '🤝 Поделиться с партнёром',
+                'not_now' => 'Не сейчас',
+                'enter_code' => '⌨️ Ввести код',
+                'enter_code_prompt' => 'Введите 8-значный код, которым с вами поделился партнёр.',
+                'partner_menu' => 'Создайте код или ссылку для женщины, введите её 8-значный код либо откройте полученную от неё ссылку.',
+                'lady_partner_menu' => 'Вы можете создать одноразовый код для партнёра или ввести созданный им код.',
+                'invite_text' => "Ваш одноразовый код подключения:\n<code>{code}</code>\n\nОн действителен 24 часа и становится недействительным после использования. Отправляйте эту ссылку только своему партнёру:\n{link}",
+                'open_link' => '🔗 Открыть ссылку подключения',
+                'connected' => '✅ Вы надёжно подключены к партнёру.',
+                'wrong_code' => 'Неверный код. В каждом 8-значном коде есть контрольная цифра; проверьте его и попробуйте ещё раз.',
+                'expired_code' => 'Срок действия кода истёк. Попросите партнёра создать новый.',
+                'used_code' => 'Этот код уже использован или отозван.',
+                'role_mismatch' => 'Этот код не подходит для выбранных ролей. Учётная запись партнёра должна подключаться к учётной записи женщины.',
+                'self_code' => 'Нельзя использовать собственный код.',
+                'already_connected' => 'Одна из этих учётных записей уже подключена к партнёру.',
+                'too_many_attempts' => 'Слишком много неудачных попыток. Попробуйте снова через 15 минут.',
+                'welcome' => 'Привет! Я Free Period Share — простой бот для отслеживания цикла и напоминаний.',
+                'keyboard_ready' => 'Постоянное меню доступно ниже.',
+                'period_started' => '🩸 Записать начало месячных',
+                'status' => '📊 Статус', 'settings' => '⚙️ Настройки',
+                'creator_button' => '👤 О создателе', 'free_button' => '🎁 Почему бесплатно?',
+                'cycle_settings' => '🗓 Настройки цикла',
+                'language_settings' => '🌐 Сменить язык',
+                'disconnect_partner' => '🔌 Отключиться от партнёра',
+                'delete_profile' => '🗑 Удалить профиль/Начать заново',
+                'back' => '↩️ Назад',
+                'disconnect_warning' => '⚠️ Будет разорвана только связь с партнёром. Данные цикла, история уведомлений и записки сохранятся. После отключения вы больше не будете получать данные и уведомления о цикле друг друга. Вы уверены?',
+                'confirm_disconnect' => '🔌 Да, отключиться',
+                'cancel_disconnect' => 'Нет, оставить связь',
+                'disconnect_done' => 'Связь с партнёром разорвана. Данные и история вашей учётной записи сохранены.',
+                'partner_disconnected' => 'Ваш партнёр разорвал связь с вами. Данные и история вашей учётной записи сохранены.',
+                'delete_profile_warning' => '⚠️ После подтверждения все данные цикла, история уведомлений, коды подключения и связь с партнёром будут безвозвратно удалены. Регистрация начнётся заново. Вы уверены?',
+                'confirm_delete' => '🗑 Да, удалить',
+                'cancel_delete' => 'Нет, отменить',
+                'profile_deleted' => 'Ваш профиль удалён, регистрация начнётся заново. Если был подключён партнёр, связь с ним разорвана.',
+                'partner_profile_deleted' => 'Ваш партнёр удалил профиль и начал регистрацию заново. Связь разорвана; для повторного подключения нужен новый код.',
+                'female_only' => 'Начало месячных можно записать только в учётной записи женщины.',
+                'period_rate_limit' => 'Чтобы избежать ошибочной записи, повторить действие пока нельзя.',
+                'already_recorded' => 'Начало месячных сегодня уже записано.',
+                'period_already_active' => 'Месячные уже отмечены как текущие. Когда они закончатся, нажмите «Месячные закончились».',
+                'period_woman' => '🩸 Начало нового цикла записано. Сегодня первый день цикла.',
+                'period_partner' => '🩸 Начало месячных у вашего партнёра записано.',
+                'period_not_active' => 'Сейчас нет активной записи о месячных.',
+                'period_end_woman' => 'Окончание текущих месячных записано.',
+                'period_end_partner' => 'Ваш партнёр записал окончание месячных.',
+                'period_due_woman' => '🗓 Сегодня предполагаемая дата начала месячных. Если кровотечение началось, отметьте это кнопкой внизу.',
+                'period_due_partner' => '🗓 Сегодня предполагаемая дата начала месячных у вашего партнёра.',
+                'yes_record_period' => '🩸 Да, записать',
+                'not_yet' => 'Пока нет',
+                'period_not_yet_ack' => 'Хорошо, ничего не записано. Когда месячные начнутся, нажмите «Начались месячные». Если будет задержка, я отправлю по одному короткому напоминанию в день, не более пяти дней.',
+                'early_woman' => 'Эти месячные начались раньше предполагаемой даты.',
+                'early_partner' => 'Месячные у вашего партнёра начались раньше предполагаемой даты.',
+                'late_arrived_woman' => 'Эти месячные начались позже предполагаемой даты.',
+                'late_arrived_partner' => 'Месячные у вашего партнёра начались позже предполагаемой даты.',
+                'ovulation_woman' => '🌼 Сегодня предполагаемый день овуляции. В это время половое влечение может повыситься, а вероятность беременности — увеличиться.',
+                'ovulation_partner' => '🌼 Сегодня предполагаемый день овуляции у вашего партнёра. В это время половое влечение может повыситься, а вероятность беременности — увеличиться.',
+                'pms_woman' => 'Сегодня предполагаемый день начала ПМС.',
+                'pms_partner' => 'Сегодня предполагаемый день начала ПМС у вашего партнёра.',
+                'late_1_woman' => '⏳ Месячные начались на 1 день позже предполагаемой даты.',
+                'late_1_partner' => '⏳ Месячные у вашего партнёра начались на 1 день позже предполагаемой даты.',
+                'late_daily_woman' => '⏳ Месячные задерживаются на {days} дн. относительно предполагаемой даты.',
+                'late_daily_partner' => '⏳ Месячные у вашего партнёра задерживаются на {days} дн. относительно предполагаемой даты.',
+                'late_7_woman' => '⏳ Месячные задерживаются на 7 дней относительно предполагаемой даты.',
+                'late_7_partner' => '⏳ Месячные у вашего партнёра задерживаются на 7 дней относительно предполагаемой даты.',
+                'no_partner' => 'Партнёр пока не подключён.',
+                'no_period' => 'Начало месячных ещё не записано.',
+                'status_late' => '⏳ задержка {days} дн.',
+                'status_due_today' => '🗓 Сегодня',
+                'status_until_due' => '⏱ осталось {days} дн.',
+                'status_text' => "Дата начала последних месячных: {last}\nПредполагаемое начало следующих: {next}\nДо следующих месячных: {timing}\nЦикл: {cycle} дн. | Кровотечение: {bleed} дн.\nПредполагаемая овуляция: {ovulation_date}\nПредполагаемое начало ПМС: {pms_date}\n\nДаты ориентировочные.",
+                'status_stale_text' => "Дата начала последних месячных: {last}\nЦикл: {cycle} дн. | Кровотечение: {bleed} дн.\n\nС этой даты прошло более 60 дней. Уведомления о ПМС, овуляции и предполагаемом начале месячных не отправляются до записи нового начала. Фактическое начало по-прежнему сообщается вам и партнёру.",
+                'history_title' => '📚 Последние 5 циклов',
+                'history_entry' => "{number}) Начало: {start}\nДлина цикла: {cycle}\nКровотечение: {bleed}",
+                'history_days' => 'дн.',
+                'history_unknown' => 'Пока неизвестно',
+                'history_in_progress' => 'Продолжается',
+                'history_empty' => 'В истории пока нет записанных дат начала месячных.',
+                'history_no_cycle' => 'В этой учётной записи нет истории циклов.',
+                'creator_text' => self::ABOUT_TEXT_RU,
+                'free_text' => self::ABOUT_TEXT_RU,
+                'notes_intro' => '💌 Записки — анонимное место для коротких сообщений пользователей. Имена, никнеймы, номера телефонов и медиафайлы не отображаются.',
+                'notes_write' => '✍️ Написать записку',
+                'notes_recent' => '📖 Последние 10 записок',
+                'notes_cancel' => 'Отмена',
+                'notes_prompt' => 'Отправьте текст одним сообщением, не более 300 символов. Номера телефонов, никнеймы, ссылки, адреса электронной почты и изображения не принимаются.',
+                'notes_text_only' => 'Принимается только текст. Изображения, файлы, аудио и видео запрещены.',
+                'notes_too_long' => 'Записка должна содержать не более 300 символов.',
+                'notes_contact_blocked' => 'Для сохранения анонимности нельзя добавлять номера телефонов, никнеймы, ссылки и адреса электронной почты.',
+                'notes_rate_limited' => 'Для защиты от злоупотреблений можно отправить не более трёх записок в час.',
+                'notes_saved' => '💌 Ваша записка сохранена анонимно.',
+                'notes_empty' => 'Записок пока нет.',
+                'note_lady' => '👩💌 Сообщение женщины',
+                'note_partner' => '🤝💌 Сообщение партнёра',
+                'note_text_label' => 'Текст:',
             ],
         ];
     }

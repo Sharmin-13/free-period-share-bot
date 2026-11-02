@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     chat_id BIGINT NOT NULL,
     first_name VARCHAR(120) NOT NULL DEFAULT '',
     username VARCHAR(64) NULL,
-    language ENUM('fa', 'en') NULL,
+    language ENUM('fa', 'en', 'ru') NULL,
     gender ENUM('female', 'male') NULL,
     state VARCHAR(40) NOT NULL DEFAULT 'choose_language',
     note_return_state VARCHAR(40) NULL,

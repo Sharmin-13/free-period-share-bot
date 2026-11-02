@@ -1,6 +1,6 @@
 # Free Period Share Bot
 
-A Persian/English Telegram bot for menstrual-cycle awareness, PMS and ovulation estimates, late-period reminders, and optional cycle sharing with a partner.
+A Persian/English/Russian Telegram bot for menstrual-cycle awareness, PMS and ovulation estimates, late-period reminders, and optional cycle sharing with a partner.
 
 ## Use the Bot
 
@@ -98,7 +98,7 @@ Personal website:
 
 ## Main behavior
 
-- Language is selected before gender.
+- Persian, English, or Russian is selected before gender; all bot messages and buttons follow each user's own language.
 - A female account can track cycle length, bleeding duration, estimated ovulation day, PMS lead time, and tap “period started”.
 - A partner account can connect to a lady, and two lady accounts can connect to each other while tracking their own cycles independently.
 - Partner-role accounts do not store personal cycle dates or cycle/bleeding/ovulation/PMS values; lady-role accounts receive defaults when registration begins.
@@ -110,7 +110,7 @@ Personal website:
 - The anonymous Notes area is available to every bot user. Everyone reads the same latest 10 messages; cycle-owner notes use the “Lady message” label and every other partner uses the gender-neutral “Partner message” label. Notes survive profile deletion, block contact details and media, escape HTML, and are rate-limited.
 - Connected users can disconnect from Settings after a confirmation step. Both sides are unlinked atomically and notified in their selected language; cycle data, notification history, and anonymous notes are preserved.
 - Recording a period start switches the lady’s keyboard action to “My period ended”; ending it stores the end date and notifies a connected partner without changing the cycle start anchor.
-- While a lady has an active period, a button beside “My period ended” lets her enter a forgotten end date. The start date comes from her recorded period and cannot be changed in this flow. Persian uses the Jalali calendar and English uses Gregorian; both year/month/day and day/month/year are accepted. Dates before the recorded start or in the future are rejected, and past alerts are not replayed.
+- While a lady has an active period, a button beside “My period ended” lets her enter a forgotten end date. The start date comes from her recorded period and cannot be changed in this flow. Persian uses the Jalali calendar; English and Russian use Gregorian. Both year/month/day and day/month/year are accepted. Dates before the recorded start or in the future are rejected, and past alerts are not replayed.
 - A recent start date entered during onboarding also activates the end button when it falls within the user's usual bleeding duration. The period-start action is offered only on the persistent bottom keyboard, not in the welcome or due-date message.
 - The persistent keyboard offers the last five recorded cycles. Each entry shows the actual interval to the next recorded start and the actual inclusive bleeding duration when an end date is known; unavailable values are labelled unknown instead of guessed.
 - Telegram buttons use a silent one-second database-backed debounce, while in-bot Back actions remain exempt.
@@ -123,6 +123,7 @@ Personal website:
 - Pairing codes are stored as keyed hashes, never as plaintext.
 - `setup.php` creates the schema and deletes itself only after success.
 - `migrations/007_partner_invites.sql` makes cycle fields nullable and clears only legacy partner-role cycle values; it does not alter lady-role data.
+- `migrations/008_russian_language.sql` adds `ru` to the bot database's language enum without changing existing users.
 - Scheduled notifications isolate failures per user and remove the deduplication marker when primary delivery fails, so one blocked chat cannot stop other users and transient failures remain retryable.
 - The production cron runs `cron-cli.php` daily at server time 09:15 with the verified `/usr/local/bin/php` binary, avoiding DNS/HTTPS outages in the public domain. Its output goes to a private, owner-only log.
 - Directory listing and public access to bootstrap files are disabled.
@@ -130,4 +131,4 @@ Personal website:
 
 The default estimates are a 28-day cycle, 5 bleeding days, ovulation around day 14, and PMS beginning about 5 days before the next estimated period. Every value is editable. Start dates older than 60 days are accepted, but scheduled PMS, ovulation, due-date, and late reminders remain disabled until a new period start is recorded.
 
-Persian dates accept both `1405/10/20` and `20/10/1405`; English dates accept both `2026-09-20` and `20-09-2026`. The middle component is always the month.
+Persian dates accept both `1405/10/20` and `20/10/1405`; English and Russian dates accept both `2026-09-20` and `20-09-2026`. The middle component is always the month.
