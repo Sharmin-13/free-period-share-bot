@@ -106,6 +106,7 @@ Personal website:
 - Partner connection is optional and uses a cryptographically random 8-digit, Luhn-checked, single-use code. Codes expire after 24 hours.
 - Connection attempts are rate-limited. Telegram updates are idempotent.
 - PMS, ovulation, late-period, early-period, and period-start messages are tailored separately for the woman and her partner.
+- If a period has not been recorded by its estimated date, the lady and her connected partner receive one late reminder on each of days 1–8. On day 9, each receives a single suggestion to consult a clinician. Each recipient's chosen language is used.
 - Creator and “why free” buttons remain in the persistent keyboard.
 - The anonymous Notes area is available to every bot user. Everyone reads the same latest 10 messages; cycle-owner notes use the “Lady message” label and every other partner uses the gender-neutral “Partner message” label. Notes survive profile deletion, block contact details and media, escape HTML, and are rate-limited.
 - Connected users can disconnect from Settings after a confirmation step. Both sides are unlinked atomically and notified in their selected language; cycle data, notification history, and anonymous notes are preserved.
@@ -129,6 +130,6 @@ Personal website:
 - Directory listing and public access to bootstrap files are disabled.
 - The public endpoint is deployed as a real directory and does not create WordPress posts, pages, or custom content.
 
-The default estimates are a 28-day cycle, 5 bleeding days, ovulation around day 14, and PMS beginning about 5 days before the next estimated period. Every value is editable. Start dates older than 60 days are accepted, but scheduled PMS, ovulation, due-date, and late reminders remain disabled until a new period start is recorded.
+The default estimates are a 28-day cycle, 5 bleeding days, ovulation around day 14, and PMS beginning about 5 days before the next estimated period. Every value is editable. Old start dates are accepted, but calendar reminders stop when the start is older than the greater of 60 days or the user's cycle length plus 9 days. A new recorded start resumes the schedule.
 
 Persian dates accept both `1405/10/20` and `20/10/1405`; English and Russian dates accept both `2026-09-20` and `20-09-2026`. The middle component is always the month.

@@ -8,6 +8,8 @@ final class Bot
     private const DEFAULT_OVULATION_DAY = 14;
     private const DEFAULT_PMS_BEFORE = 5;
     private const SCHEDULE_MAX_AGE_DAYS = 60;
+    private const LATE_DAILY_DAYS = 8;
+    private const LATE_CONSULT_DAY = 9;
     private const ABOUT_TEXT_FA = 'این ربات را من، فرشاد مصفا، با هدف دسترسی رایگان مردم در سراسر جهان به یک ابزار ساده برای آگاهی بیشتر درباره چرخه قاعدگی ساخته‌ام؛ بدون نیاز به پرداخت هزینه. فعالیت اصلی من در حوزه سبدگردانی ارز دیجیتال و بورس است و در کنار آن یک استارتاپ حقوقی برای مشاوره حقوقی و وکالت هم دارم. برای همکاری سبدگردانی می‌توانید پیام بدهید: <a href="https://t.me/farshdamosaffa">@farshdamosaffa</a>  برای استفاده از خدمات وکیل و مشاور حقوقی <a href="https://t.me/Online_vakil_24_bot">@Online_vakil_24_bot</a>' . "\n\n" . 'حتما از سایت شخصی من بازدید کنید: <a href="https://farshadmosaffa.ir/">farshadmosaffa.ir</a>';
     private const ABOUT_TEXT_EN = 'About the Creator I’m Farshad Mosaffa. I built this bot as a free tool for people around the world to better understand and track menstrual cycles without having to pay for access. My main field is cryptocurrency portfolio management. For collaboration: <a href="https://t.me/farshdamosaffa">@farshdamosaffa</a>' . "\n\n" . 'Be sure to visit my personal website: <a href="https://farshadmosaffa.ir/">farshadmosaffa.ir</a>';
     private const ABOUT_TEXT_RU = 'О создателе. Я Фаршад Мосаффа. Я создал этого бота как бесплатный инструмент, чтобы люди во всём мире могли лучше понимать и отслеживать менструальный цикл без оплаты. Моя основная сфера деятельности — управление портфелями криптовалют. Для сотрудничества: <a href="https://t.me/farshdamosaffa">@farshdamosaffa</a>' . "\n\n" . 'Обязательно посетите мой личный сайт: <a href="https://farshadmosaffa.ir/">farshadmosaffa.ir</a>';
@@ -1108,10 +1110,10 @@ final class Bot
             if ($today < $start) {
                 continue;
             }
-            if (!$this->scheduleIsCurrent($start, $today)) {
+            $cycle = max(1, min(255, (int) $user['cycle_length']));
+            if (!$this->scheduleIsCurrent($start, $today, $cycle)) {
                 continue;
             }
-            $cycle = max(1, min(255, (int) $user['cycle_length']));
             $ovulationDay = min($cycle, max(1, (int) $user['ovulation_day']));
             $pmsDaysBefore = min($cycle, max(1, (int) $user['pms_days_before']));
             $nextPeriod = $start->modify('+' . $cycle . ' days');
@@ -1128,7 +1130,7 @@ final class Bot
                 $count += $this->sendPeriodDueOnce($user, $today);
             }
             $lateDays = (int) $nextPeriod->diff($today)->format('%r%a');
-            if ($lateDays >= 1 && $lateDays <= 5) {
+            if ($lateDays >= 1 && $lateDays <= self::LATE_DAILY_DAYS) {
                 $count += $this->sendEventOnce(
                     $user,
                     'late_' . $lateDays,
@@ -1136,6 +1138,14 @@ final class Bot
                     'late_daily_woman',
                     'late_daily_partner',
                     ['days' => $lateDays]
+                );
+            } elseif ($lateDays === self::LATE_CONSULT_DAY) {
+                $count += $this->sendEventOnce(
+                    $user,
+                    'late_consult',
+                    $today,
+                    'late_consult_woman',
+                    'late_consult_partner'
                 );
             }
             } catch (Throwable $e) {
@@ -1288,7 +1298,8 @@ final class Bot
         }
         $start = new DateTimeImmutable($tracked['last_period_date'], $this->timezone);
         $today = new DateTimeImmutable('today', $this->timezone);
-        if (!$this->scheduleIsCurrent($start, $today)) {
+        $cycle = max(1, min(255, (int) $tracked['cycle_length']));
+        if (!$this->scheduleIsCurrent($start, $today, $cycle)) {
             $text = $this->t($user, 'status_stale_text', [
                 'last' => $this->formatDateForUser($user, $start),
                 'cycle' => $this->formatNumberForUser($user, (int) $tracked['cycle_length']),
@@ -1297,7 +1308,6 @@ final class Bot
             $this->telegram->send($user['chat_id'], $text, $this->mainKeyboard($user));
             return;
         }
-        $cycle = max(1, min(255, (int) $tracked['cycle_length']));
         $ovulationDay = min($cycle, max(1, (int) $tracked['ovulation_day']));
         $pmsDaysBefore = min($cycle, max(1, (int) $tracked['pms_days_before']));
         $next = $start->modify('+' . $cycle . ' days');
@@ -1791,9 +1801,10 @@ final class Bot
         return [$year, $month, $day];
     }
 
-    private function scheduleIsCurrent(DateTimeImmutable $start, DateTimeImmutable $today): bool
+    private function scheduleIsCurrent(DateTimeImmutable $start, DateTimeImmutable $today, int $cycleLength): bool
     {
-        return $start >= $today->modify('-' . self::SCHEDULE_MAX_AGE_DAYS . ' days');
+        $maxAge = max(self::SCHEDULE_MAX_AGE_DAYS, $cycleLength + self::LATE_CONSULT_DAY);
+        return $start >= $today->modify('-' . $maxAge . ' days');
     }
 
     private function formatDateForUser(array $user, DateTimeImmutable $date): string
@@ -1941,7 +1952,7 @@ final class Bot
                 'period_due_woman' => '🗓 امروز موعد تقریبی شروع پریود است. اگر خون‌ریزی شروع شده، با دکمه پایین صفحه ثبتش کن.',
                 'period_due_partner' => '🗓 امروز موعد تقریبی شروع پریود پارتنرت است.',
                 'yes_record_period' => '🩸 بله، ثبتش کن', 'not_yet' => 'هنوز نه',
-                'period_not_yet_ack' => 'باشه؛ فعلاً چیزی ثبت نشد. اگر شروع شد دکمه «الان پریود شدم» را بزن. در صورت تأخیر، حداکثر پنج روز روزی یک یادآوری کوتاه می‌فرستم.',
+                'period_not_yet_ack' => 'باشه؛ فعلاً چیزی ثبت نشد. اگر شروع شد دکمه «الان پریود شدم» را بزن. در صورت تأخیر، تا روز هشتم روزی یک یادآوری کوتاه می‌فرستم؛ روز نهم هم پیشنهاد مراجعه به پزشک می‌دهم.',
                 'early_woman' => 'پریود این چرخه زودتر از تاریخ تخمینی شروع شد.',
                 'early_partner' => 'پریود پارتنرت زودتر از تاریخ تخمینی شروع شد.',
                 'late_arrived_woman' => 'پریود این چرخه دیرتر از تاریخ تخمینی شروع شد.',
@@ -1954,12 +1965,14 @@ final class Bot
                 'late_1_partner' => '⏳ پریود پارتنرت یک روز از تاریخ تخمینی عقب افتاده است.',
                 'late_daily_woman' => '⏳ پریود {days} روز از تاریخ تخمینی عقب افتاده است.',
                 'late_daily_partner' => '⏳ پریود پارتنرت {days} روز از تاریخ تخمینی عقب افتاده است.',
+                'late_consult_woman' => '⏳ پریودت ۹ روز از تاریخ تخمینی عقب افتاده است. بهتر است برای بررسی با پزشک مشورت کنی.',
+                'late_consult_partner' => '⏳ پریود پارتنرت ۹ روز از تاریخ تخمینی عقب افتاده است. بهتر است پارتنرت برای بررسی با پزشک مشورت کند.',
                 'late_7_woman' => '⏳ پریود هفت روز از تاریخ تخمینی عقب افتاده است.',
                 'late_7_partner' => '⏳ پریود پارتنرت هفت روز از تاریخ تخمینی عقب افتاده است.',
                 'no_partner' => 'هنوز پارتنری متصل نیست.', 'no_period' => 'هنوز شروع پریود ثبت نشده است.',
                 'status_late' => '⏳ {days} روز تأخیر', 'status_due_today' => '🗓 امروز', 'status_until_due' => '⏱ {days} روز',
                 'status_text' => "تاریخ شروع آخرین پریود: {last}\nپریود بعدیِ تقریبی: {next}\nروزهای مانده تا پریود بعدی: {timing}\nچرخه: {cycle} روز | خون‌ریزی: {bleed} روز\nتاریخ تقریبی تخمک‌گذاری: {ovulation_date}\nتاریخ تقریبی شروع PMS: {pms_date}\n\nتاریخ‌ها شمسی و تخمینی‌اند.",
-                'status_stale_text' => "تاریخ شروع آخرین پریود: {last}\nچرخه: {cycle} روز | خون‌ریزی: {bleed} روز\n\nبیش از ۶۰ روز از این تاریخ گذشته است؛ اعلان‌های PMS، تخمک‌گذاری و موعد پریود تا ثبت شروع بعدی فعال نمی‌شوند. ثبت واقعی شروع پریود همچنان به تو و پارتنرت اعلام می‌شود.",
+                'status_stale_text' => "تاریخ شروع آخرین پریود: {last}\nچرخه: {cycle} روز | خون‌ریزی: {bleed} روز\n\nاز آخرین شروع ثبت‌شده مدت زیادی گذشته است؛ اعلان‌های تقویمی تا ثبت شروع بعدی فعال نمی‌شوند. ثبت واقعی شروع پریود همچنان به تو و پارتنرت اعلام می‌شود.",
                 'history_title' => '📚 تاریخچه ۵ چرخه اخیر',
                 'history_entry' => "{number}) شروع: {start}\nطول چرخه: {cycle}\nمدت خون‌ریزی: {bleed}",
                 'history_days' => 'روز', 'history_unknown' => 'هنوز مشخص نیست',
@@ -2029,7 +2042,7 @@ final class Bot
                 'period_due_woman' => '🗓 Today is the estimated period start date. If bleeding has started, record it with the button below.',
                 'period_due_partner' => '🗓 Today is your partner’s estimated period start date.',
                 'yes_record_period' => '🩸 Yes, record it', 'not_yet' => 'Not yet',
-                'period_not_yet_ack' => 'Okay—nothing was recorded. Tap “My period started” when it begins. If it is late, I’ll send one brief reminder per day for up to five days.',
+                'period_not_yet_ack' => 'Okay—nothing was recorded. Tap “My period started” when it begins. If it is late, I’ll send one brief reminder a day through day 8, then suggest consulting a clinician on day 9.',
                 'early_woman' => 'This period started earlier than the estimated date.',
                 'early_partner' => 'Your partner’s period started earlier than the estimated date.',
                 'late_arrived_woman' => 'This period started later than the estimated date.',
@@ -2042,12 +2055,14 @@ final class Bot
                 'late_1_partner' => '⏳ Your partner’s period is 1 day past the estimated date.',
                 'late_daily_woman' => '⏳ Your period is {days} days past the estimated date.',
                 'late_daily_partner' => '⏳ Your partner’s period is {days} days past the estimated date.',
+                'late_consult_woman' => '⏳ Your period is 9 days past the estimated date. It would be a good idea to consult a clinician.',
+                'late_consult_partner' => '⏳ Your partner’s period is 9 days past the estimated date. It would be a good idea for your partner to consult a clinician.',
                 'late_7_woman' => '⏳ Your period is 7 days past the estimated date.',
                 'late_7_partner' => '⏳ Your partner’s period is 7 days past the estimated date.',
                 'no_partner' => 'No partner is connected yet.', 'no_period' => 'No period start has been recorded yet.',
                 'status_late' => '⏳ {days} day(s) late', 'status_due_today' => '🗓 Today', 'status_until_due' => '⏱ {days} day(s)',
                 'status_text' => "Last period start date: {last}\nEstimated next period: {next}\nDays until next period: {timing}\nCycle: {cycle} days | Bleeding: {bleed} days\nEstimated ovulation date: {ovulation_date}\nEstimated PMS start: {pms_date}\n\nThese dates are estimates.",
-                'status_stale_text' => "Last period start date: {last}\nCycle: {cycle} days | Bleeding: {bleed} days\n\nMore than 60 days have passed since this date, so PMS, ovulation, and due-date notifications stay off until the next period start is recorded. A real period-start entry is still announced to you and your partner.",
+                'status_stale_text' => "Last period start date: {last}\nCycle: {cycle} days | Bleeding: {bleed} days\n\nA long time has passed since the last recorded start. Calendar notifications stay off until the next period start is recorded. A real period-start entry is still announced to you and your partner.",
                 'history_title' => '📚 Last 5 cycles',
                 'history_entry' => "{number}) Started: {start}\nCycle length: {cycle}\nBleeding: {bleed}",
                 'history_days' => 'days', 'history_unknown' => 'Not known yet',
@@ -2142,7 +2157,7 @@ final class Bot
                 'period_due_partner' => '🗓 Сегодня предполагаемая дата начала месячных у вашего партнёра.',
                 'yes_record_period' => '🩸 Да, записать',
                 'not_yet' => 'Пока нет',
-                'period_not_yet_ack' => 'Хорошо, ничего не записано. Когда месячные начнутся, нажмите «Начались месячные». Если будет задержка, я отправлю по одному короткому напоминанию в день, не более пяти дней.',
+                'period_not_yet_ack' => 'Хорошо, ничего не записано. Когда месячные начнутся, нажмите «Начались месячные». При задержке я отправлю по одному короткому напоминанию в день до восьмого дня, а на девятый предложу обратиться к врачу.',
                 'early_woman' => 'Эти месячные начались раньше предполагаемой даты.',
                 'early_partner' => 'Месячные у вашего партнёра начались раньше предполагаемой даты.',
                 'late_arrived_woman' => 'Эти месячные начались позже предполагаемой даты.',
@@ -2155,6 +2170,8 @@ final class Bot
                 'late_1_partner' => '⏳ Месячные у вашего партнёра начались на 1 день позже предполагаемой даты.',
                 'late_daily_woman' => '⏳ Месячные задерживаются на {days} дн. относительно предполагаемой даты.',
                 'late_daily_partner' => '⏳ Месячные у вашего партнёра задерживаются на {days} дн. относительно предполагаемой даты.',
+                'late_consult_woman' => '⏳ Месячные задерживаются на 9 дней относительно предполагаемой даты. Рекомендуем обратиться к врачу для консультации.',
+                'late_consult_partner' => '⏳ Месячные у вашего партнёра задерживаются на 9 дней относительно предполагаемой даты. Рекомендуем вашему партнёру обратиться к врачу для консультации.',
                 'late_7_woman' => '⏳ Месячные задерживаются на 7 дней относительно предполагаемой даты.',
                 'late_7_partner' => '⏳ Месячные у вашего партнёра задерживаются на 7 дней относительно предполагаемой даты.',
                 'no_partner' => 'Партнёр пока не подключён.',
@@ -2163,7 +2180,7 @@ final class Bot
                 'status_due_today' => '🗓 Сегодня',
                 'status_until_due' => '⏱ осталось {days} дн.',
                 'status_text' => "Дата начала последних месячных: {last}\nПредполагаемое начало следующих: {next}\nДо следующих месячных: {timing}\nЦикл: {cycle} дн. | Кровотечение: {bleed} дн.\nПредполагаемая овуляция: {ovulation_date}\nПредполагаемое начало ПМС: {pms_date}\n\nДаты ориентировочные.",
-                'status_stale_text' => "Дата начала последних месячных: {last}\nЦикл: {cycle} дн. | Кровотечение: {bleed} дн.\n\nС этой даты прошло более 60 дней. Уведомления о ПМС, овуляции и предполагаемом начале месячных не отправляются до записи нового начала. Фактическое начало по-прежнему сообщается вам и партнёру.",
+                'status_stale_text' => "Дата начала последних месячных: {last}\nЦикл: {cycle} дн. | Кровотечение: {bleed} дн.\n\nС последней записанной даты начала прошло много времени. Уведомления по календарю не отправляются до записи нового начала. Фактическое начало по-прежнему сообщается вам и партнёру.",
                 'history_title' => '📚 Последние 5 циклов',
                 'history_entry' => "{number}) Начало: {start}\nДлина цикла: {cycle}\nКровотечение: {bleed}",
                 'history_days' => 'дн.',
