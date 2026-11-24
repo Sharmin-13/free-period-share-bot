@@ -42,7 +42,9 @@ foreach ($keyboard as $row) {
 
 $russian['period_active'] = 0;
 $keyboard = $reflection->getMethod('mainKeyboard')->invoke($bot, $russian)['keyboard'];
-check(count($keyboard[0]) === 1 && $keyboard[0][0]['text'] === '🩸 Начались месячные', 'Inactive Russian keyboard is wrong');
+check(count($keyboard[0]) === 2 && $keyboard[0][0]['text'] === '🩸 Начались месячные', 'Inactive Russian keyboard is wrong');
+check($keyboard[0][1]['text'] === '📅 Записать пропущенное начало', 'Russian backdated start button missing');
+check($keyboard[0][0]['style'] === $keyboard[0][1]['style'], 'Start buttons must use the same style');
 
 $russian['gender'] = 'male';
 $keyboard = $reflection->getMethod('mainKeyboard')->invoke($bot, $russian)['keyboard'];

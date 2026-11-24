@@ -65,11 +65,15 @@ final class Bot
             $this->recordPeriod($user);
             return;
         }
+        if ($this->matches($text, ['📅 ثبت شروع فراموش‌شده', '📅 Log a missed start', '📅 Записать пропущенное начало', '📅 ثبت پریود جاافتاده', '📅 Log a missed period'])) {
+            $this->beginMissedPeriodStart($user);
+            return;
+        }
         if ($this->matches($text, ['🩸 الان پریودم تموم شد', '🩸 My period ended', '🩸 Месячные закончились'])) {
             $this->recordPeriodEnd($user);
             return;
         }
-        if ($this->matches($text, ['📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 Записать дату окончания', '📅 ثبت پریود جاافتاده', '📅 Log a missed period'])) {
+        if ($this->matches($text, ['📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 Записать дату окончания'])) {
             $this->beginMissedPeriod($user);
             return;
         }
@@ -335,7 +339,11 @@ final class Bot
             $this->askMissedPeriodEnd($user);
             return;
         }
-        if ($user['state'] === 'missed_period_start' || str_starts_with((string) $user['state'], 'missed_period_end_')) {
+        if ($user['state'] === 'missed_period_start') {
+            $this->askMissedPeriodStart($user);
+            return;
+        }
+        if (str_starts_with((string) $user['state'], 'missed_period_end_')) {
             $this->beginMissedPeriod($user);
             return;
         }
@@ -368,7 +376,11 @@ final class Bot
             $this->handleMissedPeriodEnd($user, $text);
             return;
         }
-        if ($user['state'] === 'missed_period_start' || str_starts_with((string) $user['state'], 'missed_period_end_')) {
+        if ($user['state'] === 'missed_period_start') {
+            $this->handleMissedPeriodStart($user, $text);
+            return;
+        }
+        if (str_starts_with((string) $user['state'], 'missed_period_end_')) {
             $this->beginMissedPeriod($user);
             return;
         }
@@ -884,6 +896,88 @@ final class Bot
             }
             throw $e;
         }
+    }
+
+    private function beginMissedPeriodStart(array $user): void
+    {
+        if ($user['gender'] !== 'female') {
+            $this->showMenu($user);
+            return;
+        }
+        if (in_array($user['state'], [
+            'cycle_length', 'cycle_custom', 'bleed_length', 'bleed_custom',
+            'ovulation_day', 'ovulation_custom', 'pms_days', 'pms_custom',
+            'last_period_date', 'last_period_custom',
+        ], true)) {
+            $this->resumeFemaleSetup($user);
+            return;
+        }
+        if (!empty($user['period_active'])) {
+            $this->telegram->send($user['chat_id'], $this->t($user, 'period_already_active'), $this->mainKeyboard($user));
+            return;
+        }
+        $this->updateUser($user['id'], ['state' => 'missed_period_start', 'note_return_state' => null]);
+        $this->askMissedPeriodStart($this->getUserById((int) $user['id']));
+    }
+
+    private function askMissedPeriodStart(array $user): void
+    {
+        $this->telegram->send($user['chat_id'], $this->t($user, 'missed_start_prompt'), $this->mainKeyboard($user));
+    }
+
+    private function handleMissedPeriodStart(array $user, string $text): void
+    {
+        $start = $this->parseDateForUser($user, $text);
+        $today = new DateTimeImmutable('today', $this->timezone);
+        if ($start === null || $start >= $today) {
+            $this->telegram->send($user['chat_id'], $this->t($user, 'missed_invalid_start'));
+            return;
+        }
+        $startDate = $start->format('Y-m-d');
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare('SELECT * FROM users WHERE id = ? FOR UPDATE');
+            $stmt->execute([(int) $user['id']]);
+            $locked = $stmt->fetch();
+            if (!$locked || $locked['gender'] !== 'female' || $locked['state'] !== 'missed_period_start' || !empty($locked['period_active'])) {
+                throw new DomainException('state_changed');
+            }
+            if (($locked['last_period_date'] !== null && $startDate <= $locked['last_period_date'])
+                || ($locked['last_period_end_date'] !== null && $startDate <= $locked['last_period_end_date'])) {
+                throw new DomainException('conflict');
+            }
+            $stmt = $this->db->prepare('SELECT started_on FROM period_cycles WHERE tracked_user_id = ? AND started_on >= ? LIMIT 1 FOR UPDATE');
+            $stmt->execute([(int) $user['id'], $startDate]);
+            if ($stmt->fetchColumn() !== false) {
+                throw new DomainException('conflict');
+            }
+            $this->db->prepare('INSERT INTO period_cycles (tracked_user_id, started_on) VALUES (?, ?)')
+                ->execute([(int) $user['id'], $startDate]);
+            $this->updateUser($user['id'], [
+                'last_period_date' => $startDate,
+                'last_period_end_date' => null,
+                'period_active' => 1,
+                'state' => 'ready',
+            ]);
+            $this->db->commit();
+        } catch (DomainException $e) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            if ($e->getMessage() === 'state_changed') {
+                $this->start($this->getUserById((int) $user['id']));
+                return;
+            }
+            $this->telegram->send($user['chat_id'], $this->t($user, 'missed_start_conflict'));
+            return;
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $e;
+        }
+        $fresh = $this->getUserById((int) $user['id']);
+        $date = $this->formatDateForUser($fresh, $start);
+        $partnerDate = $fresh['partner_id'] === null ? $date
+            : $this->formatDateForUser($this->getUserById((int) $fresh['partner_id']), $start);
+        $this->notifyTracked($fresh, $this->t($fresh, 'missed_start_saved', ['date' => $date]),
+            $this->partnerText($fresh, 'missed_start_partner', ['date' => $partnerDate]));
     }
 
     private function beginMissedPeriod(array $user): void
@@ -1519,6 +1613,8 @@ final class Bot
             $periodRow = [['text' => $periodButton, 'style' => 'danger']];
             if (!empty($user['period_active'])) {
                 $periodRow[] = ['text' => $this->keyboardText($user, '📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 Записать дату окончания'), 'style' => 'danger'];
+            } else {
+                $periodRow[] = ['text' => $this->keyboardText($user, '📅 ثبت شروع فراموش‌شده', '📅 Log a missed start', '📅 Записать пропущенное начало'), 'style' => 'danger'];
             }
             $rows[] = $periodRow;
             $rows[] = [['text' => $this->keyboardText($user, '📊 وضعیت من', '📊 My status', '📊 Мой статус')], ['text' => $this->keyboardText($user, '⚙️ تنظیمات', '⚙️ Settings', '⚙️ Настройки')]];
@@ -1669,6 +1765,7 @@ final class Bot
             '🩸 الان پریود شدم', '🩸 My period started', '🩸 Начались месячные',
             '🩸 الان پریودم تموم شد', '🩸 My period ended', '🩸 Месячные закончились',
             '📅 ثبت پایان فراموش‌شده', '📅 Log a missed end', '📅 Записать дату окончания',
+            '📅 ثبت شروع فراموش‌شده', '📅 Log a missed start', '📅 Записать пропущенное начало',
             '📅 ثبت پریود جاافتاده', '📅 Log a missed period',
             '🔗 افزودن پارتنر', '🔗 Add partner', '🔗 Добавить партнёра',
             '🤝 با یارت به اشتراک بذار', '🤝 Share with your partner', '🤝 Поделиться с партнёром',
@@ -1910,6 +2007,11 @@ final class Bot
                 'started_today' => '🩸 امروز شروع شد', 'enter_start_date' => '📅 وارد کردن تاریخ', 'record_later' => 'بعداً با دکمه ثبت می‌کنم',
                 'start_date_prompt' => 'تاریخ شروع را به شمسی بفرست؛ مثل ۱۴۰۵/۱۰/۲۰ یا ۲۰/۱۰/۱۴۰۵. عدد وسط ماه است و خط تیره هم پذیرفته می‌شود.',
                 'invalid_start_date' => 'تاریخ معتبر نیست. تاریخ شمسی را مثل ۱۴۰۵/۱۰/۲۰ یا ۲۰/۱۰/۱۴۰۵ بفرست. تاریخ آینده پذیرفته نمی‌شود.',
+                'missed_start_prompt' => 'اگر چند روز پیش پریود شدی و ثبتش نکردی، تاریخ دقیق شروع را به شمسی بفرست؛ مثل ۱۴۰۵/۱۰/۲۰ یا ۲۰/۱۰/۱۴۰۵. برای انصراف /menu را بفرست.',
+                'missed_invalid_start' => 'تاریخ شروع معتبر نیست. تاریخ شمسیِ پیش از امروز را بفرست؛ مثل ۱۴۰۵/۱۰/۲۰ یا ۲۰/۱۰/۱۴۰۵.',
+                'missed_start_conflict' => 'این تاریخ باید پس از آخرین پریود و پایان ثبت‌شده باشد و با چرخهٔ دیگری تداخل نداشته باشد. هیچ داده‌ای تغییر نکرد؛ تاریخ دیگری بفرست یا /menu را بزن.',
+                'missed_start_saved' => '✅ شروع پریود در {date} ثبت شد. اگر خون‌ریزی تمام شده، با دکمهٔ ثبت پایان فراموش‌شده تاریخ پایان را هم وارد کن.',
+                'missed_start_partner' => '🩸 پارتنرت شروع پریودش را برای {date} ثبت کرد.',
                 'missed_end_prompt' => "شروع پریود ثبت‌شده: {start}\nاگر پایان این پریود را فراموش کردی ثبت کنی، تاریخ دقیق پایان خون‌ریزی را به شمسی بفرست؛ مثل ۱۴۰۵/۰۷/۱۰ یا ۱۰/۰۷/۱۴۰۵. عدد وسط ماه است و خط تیره هم پذیرفته می‌شود. برای انصراف /menu را بفرست.",
                 'missed_invalid_end' => 'تاریخ پایان معتبر نیست. باید از {start} زودتر نباشد و در آینده هم نباشد. دوباره به شمسی بفرست.',
                 'missed_conflict' => 'پایان این پریود قبلاً ثبت شده یا با چرخهٔ دیگری تداخل دارد؛ هیچ داده‌ای تغییر نکرد. وضعیتت را بررسی کن.',
@@ -2001,6 +2103,11 @@ final class Bot
                 'started_today' => '🩸 It started today', 'enter_start_date' => '📅 Enter the date', 'record_later' => 'I’ll record it later',
                 'start_date_prompt' => 'Send the start date as YYYY-MM-DD or DD-MM-YYYY, for example 2026-09-20 or 20-09-2026. The middle number is always the month; slashes are also accepted.',
                 'invalid_start_date' => 'That date is invalid. Use YYYY-MM-DD or DD-MM-YYYY. Future dates are not accepted.',
+                'missed_start_prompt' => 'If your period started a few days ago and you forgot to record it, send the actual Gregorian start date as YYYY-MM-DD or DD-MM-YYYY. Send /menu to cancel.',
+                'missed_invalid_start' => 'That start date is invalid. Send a Gregorian date before today as YYYY-MM-DD or DD-MM-YYYY.',
+                'missed_start_conflict' => 'The date must be after your last recorded period and end date, without overlapping another cycle. Nothing was changed. Send another date or /menu.',
+                'missed_start_saved' => '✅ Period start recorded for {date}. If bleeding has ended, use “Log a missed end” to enter the end date.',
+                'missed_start_partner' => '🩸 Your partner recorded a period start for {date}.',
                 'missed_end_prompt' => "Recorded period start: {start}\nIf you forgot to log when this period ended, send the exact end date in Gregorian format, for example 2026-10-06 or 06-10-2026. The middle number is the month; slashes also work. Send /menu to cancel.",
                 'missed_invalid_end' => 'That end date is invalid. It cannot be before {start} or in the future. Send a Gregorian date again.',
                 'missed_conflict' => 'This period already has an end date or conflicts with another cycle. No data was changed. Check your status.',
@@ -2093,6 +2200,11 @@ final class Bot
                 'started_today' => '🩸 Начались сегодня', 'enter_start_date' => '📅 Ввести дату', 'record_later' => 'Запишу позже',
                 'start_date_prompt' => 'Отправьте дату начала по григорианскому календарю в формате ГГГГ-ММ-ДД или ДД-ММ-ГГГГ, например 2026-09-20 или 20-09-2026. Среднее число — месяц; косая черта тоже подходит.',
                 'invalid_start_date' => 'Неверная дата. Используйте ГГГГ-ММ-ДД или ДД-ММ-ГГГГ. Будущая дата не принимается.',
+                'missed_start_prompt' => 'Если месячные начались несколько дней назад, но вы забыли их отметить, отправьте фактическую дату начала по григорианскому календарю в формате ГГГГ-ММ-ДД или ДД-ММ-ГГГГ. Для отмены отправьте /menu.',
+                'missed_invalid_start' => 'Неверная дата начала. Отправьте григорианскую дату до сегодняшнего дня в формате ГГГГ-ММ-ДД или ДД-ММ-ГГГГ.',
+                'missed_start_conflict' => 'Дата должна быть позже последнего записанного начала и окончания месячных и не пересекаться с другим циклом. Данные не изменены. Отправьте другую дату или /menu.',
+                'missed_start_saved' => '✅ Начало месячных записано на {date}. Если кровотечение уже закончилось, укажите дату с помощью кнопки «Записать дату окончания».',
+                'missed_start_partner' => '🩸 Ваш партнёр записал начало месячных на {date}.',
                 'missed_end_prompt' => "Записанное начало месячных: {start}\nЕсли вы забыли отметить окончание, отправьте точную дату окончания по григорианскому календарю, например 2026-10-06 или 06-10-2026. Среднее число — месяц; косая черта тоже подходит. Для отмены отправьте /menu.",
                 'missed_invalid_end' => 'Неверная дата окончания. Она не может быть раньше {start} или позже сегодняшнего дня. Отправьте григорианскую дату ещё раз.',
                 'missed_conflict' => 'Дата окончания уже записана или пересекается с другим циклом. Данные не изменены. Проверьте свой статус.',
